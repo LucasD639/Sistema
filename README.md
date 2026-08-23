@@ -24,7 +24,7 @@ python sistema.py
 ## Estrutura do projeto
 
 ```
-Sistema/
+.
 ├── sistema.py     # Aplicação principal
 ├── livros.json    # Exemplo de dados em JSON
 └── README.md
