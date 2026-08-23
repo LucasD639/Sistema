@@ -1,16 +1,14 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, filedialog, messagebox
 import sqlite3
 import os
+import json
 
 class SistemaCadastroLivros:
     LIMITE_GRADE_LIVROS = 50
 
-    def __init__(self):
-        if os.path.exists("livros.db"):
-            os.remove("livros.db")
-
-        self.conexao = sqlite3.connect("livros.db")
+    def __init__(self, db_path="livros.db"):
+        self.conexao = sqlite3.connect(db_path)
         self.cursor = self.conexao.cursor()
 
         self.cursor.execute('''CREATE TABLE IF NOT EXISTS livros (
@@ -26,20 +24,21 @@ class SistemaCadastroLivros:
     def cadastrar_livro(self, titulo, autor, ano_publicacao, preco, genero, quantidade):
         if self.obter_quantidade_livros() >= self.LIMITE_GRADE_LIVROS:
             print(f"Limite de livros atingido. Não é possível cadastrar mais livros (limite: {self.LIMITE_GRADE_LIVROS}).")
-            return
+            return False
 
         if not autor.replace(" ", "").isalpha():
             print("Erro: O nome do autor deve conter apenas letras.")
-            return
+            return False
 
         if not ano_publicacao.isdigit() or not quantidade.isdigit():
             print("Erro: O ano de publicação e a quantidade devem conter apenas números inteiros.")
-            return
+            return False
 
         self.cursor.execute("INSERT INTO livros (Titulo, Autor, Ano_Publicacao, Preco, Genero, Quantidade) VALUES (?, ?, ?, ?, ?, ?)",
                             (titulo, autor, ano_publicacao, preco, genero, quantidade))
         self.conexao.commit()
         print("Livro cadastrado com sucesso.")
+        return True
 
     def excluir_livro(self, livro_id=None):
         if livro_id is None:
@@ -66,6 +65,39 @@ class SistemaCadastroLivros:
     def obter_quantidade_livros(self):
         self.cursor.execute("SELECT COUNT(*) FROM livros")
         return self.cursor.fetchone()[0]
+
+    def exportar_json(self, caminho):
+        livros = self.listar_livros()
+        dados = [
+            {
+                "ID": l[0],
+                "Titulo": l[1],
+                "Autor": l[2],
+                "Ano_Publicacao": l[3],
+                "Preco": l[4],
+                "Genero": l[5],
+                "Quantidade": l[6],
+            }
+            for l in livros
+        ]
+        with open(caminho, "w", encoding="utf-8") as f:
+            json.dump(dados, f, ensure_ascii=False, indent=2)
+        print(f"Dados exportados para {caminho}.")
+
+    def importar_json(self, caminho):
+        with open(caminho, "r", encoding="utf-8") as f:
+            dados = json.load(f)
+        importados = 0
+        for livro in dados:
+            titulo = str(livro.get("Titulo", ""))
+            autor = str(livro.get("Autor", ""))
+            ano = str(livro.get("Ano_Publicacao", ""))
+            preco = livro.get("Preco", 0.0)
+            genero = str(livro.get("Genero", ""))
+            quantidade = str(livro.get("Quantidade", "1"))
+            if self.cadastrar_livro(titulo, autor, ano, preco, genero, quantidade):
+                importados += 1
+        print(f"{importados} livro(s) importado(s) de {caminho}.")
 
 def cadastrar_livro_interface():
     titulo = entry_titulo.get()
@@ -100,6 +132,26 @@ def listar_livros_interface():
 
 def atualizar_quantidade_livros():
     quantidade_livros.set(f"Quantidade de Livros: {sistema_cadastro.obter_quantidade_livros()}")
+
+def exportar_json_interface():
+    caminho = filedialog.asksaveasfilename(
+        defaultextension=".json",
+        filetypes=[("JSON files", "*.json")],
+        title="Exportar livros para JSON",
+    )
+    if caminho:
+        sistema_cadastro.exportar_json(caminho)
+        messagebox.showinfo("Exportação", f"Dados exportados para:\n{caminho}")
+
+def importar_json_interface():
+    caminho = filedialog.askopenfilename(
+        filetypes=[("JSON files", "*.json")],
+        title="Importar livros de JSON",
+    )
+    if caminho:
+        sistema_cadastro.importar_json(caminho)
+        atualizar_interface()
+        messagebox.showinfo("Importação", f"Dados importados de:\n{caminho}")
 
 sistema_cadastro = SistemaCadastroLivros()
 
@@ -157,6 +209,12 @@ entry_id_excluir.grid(column=1, row=7, sticky=(tk.W, tk.E))
 button_excluir = ttk.Button(frame, text="Excluir Livro", command=excluir_livro_interface)
 button_excluir.grid(column=0, row=8, columnspan=2, pady=10)
 
+button_exportar = ttk.Button(frame, text="Exportar JSON", command=exportar_json_interface)
+button_exportar.grid(column=0, row=11, pady=5)
+
+button_importar = ttk.Button(frame, text="Importar JSON", command=importar_json_interface)
+button_importar.grid(column=1, row=11, pady=5)
+
 tree = ttk.Treeview(frame, columns=("ID", "Título", "Autor", "Ano de Publicação", "Preço", "Gênero", "Quantidade"), show="headings")
 tree.heading("ID", text="ID")
 tree.heading("Título", text="Título")
@@ -168,8 +226,8 @@ tree.heading("Quantidade", text="Quantidade")
 tree.grid(column=0, row=9, columnspan=2, sticky=(tk.W, tk.E))
 
 quantidade_livros = tk.StringVar()
-label_quantidade = ttk.Label(frame, textvariable=quantidade_livros)
-label_quantidade.grid(column=0, row=10, columnspan=2, pady=10)
+label_quantidade_total = ttk.Label(frame, textvariable=quantidade_livros)
+label_quantidade_total.grid(column=0, row=10, columnspan=2, pady=10)
 
 atualizar_interface()
 
