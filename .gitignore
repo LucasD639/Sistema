@@ -1,0 +1,11 @@
+# Banco de dados gerado em tempo de execução
+livros.db
+
+# Arquivos Python compilados
+__pycache__/
+*.pyc
+*.pyo
+
+# Ambientes virtuais
+venv/
+.env/
